@@ -1,8 +1,8 @@
 package dcron
 
 import (
-	"github.com/LibiChai/dcron/consistenthash"
-	"github.com/LibiChai/dcron/driver"
+	"github.com/xiaojun207/dcron/consistenthash"
+	"github.com/xiaojun207/dcron/driver"
 	"sync"
 	"time"
 )

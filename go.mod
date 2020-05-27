@@ -1,4 +1,4 @@
-module github.com/LibiChai/dcron
+module github.com/xiaojun207/dcron
 
 go 1.12
 
