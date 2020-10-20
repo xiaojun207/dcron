@@ -13,9 +13,19 @@ const GlobalKeyPrefix = "distributed-cron:"
 
 // RedisConf is redis config
 type Conf struct {
-	Host     string
-	Port     int
+	Proto string
+
+	// first use addr
+	Addr     string
 	Password string
+
+	Host string
+	Port int
+
+	MaxActive   int
+	MaxIdle     int
+	IdleTimeout time.Duration
+	Wait        bool
 }
 
 // RedisDriver is redisDriver
@@ -27,14 +37,35 @@ type RedisDriver struct {
 }
 
 // NewDriver return a redis driver
-func NewDriver(conf *Conf) (*RedisDriver, error) {
+func NewDriver(conf *Conf, options ...redis.DialOption) (*RedisDriver, error) {
+	ops := []redis.DialOption{
+		redis.DialPassword(conf.Password),
+	}
+	ops = append(ops, options...)
+
+	if conf.Proto == "" {
+		conf.Proto = "tcp"
+	}
+	if conf.MaxActive == 0 {
+		conf.MaxActive = 100
+	}
+	if conf.MaxIdle == 0 {
+		conf.MaxIdle = 100
+	}
+	if conf.IdleTimeout == 0 {
+		conf.IdleTimeout = time.Second * 5
+	}
+	if conf.Addr == "" {
+		conf.Addr = fmt.Sprintf("%s:%d", conf.Host, conf.Port)
+	}
+
 	rd := &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   100,
-		IdleTimeout: 5 * time.Second,
+		MaxIdle:     conf.MaxIdle,
+		MaxActive:   conf.MaxActive,
+		IdleTimeout: conf.IdleTimeout,
+		Wait:        conf.Wait,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", conf.Host, conf.Port),
-				redis.DialConnectTimeout(time.Second*5), redis.DialPassword(conf.Password))
+			c, err := redis.Dial(conf.Proto, conf.Addr, ops...)
 			if err != nil {
 				panic(err)
 			}
