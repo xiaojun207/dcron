@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-const defaultReplicas = 50
-const defaultDuration = 1
-
 //NodePool is a node pool
 type NodePool struct {
 	serviceName string
