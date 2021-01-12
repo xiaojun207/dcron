@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
+	"log"
 	"time"
 )
 
@@ -88,7 +89,7 @@ func (rd *RedisDriver) Ping() error {
 	return nil
 }
 func (rd *RedisDriver) getKeyPre(serviceName string) string {
-	return GlobalKeyPrefix + serviceName + ":"
+	return fmt.Sprintf("%s%s:", GlobalKeyPrefix, serviceName)
 }
 
 //SetTimeout set redis timeout
@@ -98,7 +99,6 @@ func (rd *RedisDriver) SetTimeout(timeout time.Duration) {
 
 //SetHeartBeat set herbear
 func (rd *RedisDriver) SetHeartBeat(nodeID string) {
-
 	go rd.heartBear(nodeID)
 }
 func (rd *RedisDriver) heartBear(nodeID string) {
@@ -107,9 +107,15 @@ func (rd *RedisDriver) heartBear(nodeID string) {
 	key := nodeID
 	tickers := time.NewTicker(rd.timeout / 2)
 	for range tickers.C {
-		_, err := rd.do("EXPIRE", key, int(rd.timeout/time.Second))
+		keyExist, err := redis.Int(rd.do("EXPIRE", key, int(rd.timeout/time.Second)))
 		if err != nil {
-			panic(err)
+			log.Printf("redis expire error %+v", err)
+			continue
+		}
+		if keyExist == 0 {
+			if err := rd.registerServiceNode(nodeID); err != nil {
+				log.Printf("register service node error %+v", err)
+			}
 		}
 	}
 }
@@ -121,16 +127,21 @@ func (rd *RedisDriver) GetServiceNodeList(serviceName string) ([]string, error) 
 }
 
 //RegisterServiceNode  register a service node
-func (rd *RedisDriver) RegisterServiceNode(serviceName string) (nodeID string) {
-
-	nodeID = uuid.New().String()
-
-	key := rd.getKeyPre(serviceName) + nodeID
-	_, err := rd.do("SETEX", key, int(rd.timeout/time.Second), nodeID)
-	if err != nil {
-		return ""
+func (rd *RedisDriver) RegisterServiceNode(serviceName string) (nodeID string, err error) {
+	nodeID = rd.randNodeID(serviceName)
+	if err := rd.registerServiceNode(nodeID); err != nil {
+		return "", err
 	}
-	return key
+	return nodeID, nil
+}
+
+func (rd *RedisDriver) randNodeID(serviceName string) (nodeID string) {
+	return rd.getKeyPre(serviceName) + uuid.New().String()
+}
+
+func (rd *RedisDriver) registerServiceNode(nodeID string) error {
+	_, err := rd.do("SETEX", nodeID, int(rd.timeout/time.Second), nodeID)
+	return err
 }
 
 func (rd *RedisDriver) do(command string, params ...interface{}) (interface{}, error) {
